@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  gcs-station:
+    build: .
+    container_name: mavlink-openmct-bridge
+    privileged: true
+    network_mode: "host" # host-mode overtakes all network connections from host, easyest for MAVLink-UDP-Traffic
+    restart: always  # launch at start
+
+    volumes:
+      - ./launch_all.py:/app/launch_all.py
+      - ./launch_telemetry_bridge.py:/app/launch_telemetry_bridge.py
+      - ./openmct:/app/openmct
+      - ./.cache:/app/.cache
+      - ./logs:/app/logs
+    
+    devices:
+      - "/dev:/dev" # passthrough all USB devices
+      #- "/dev/ttyUSB0:/dev/ttyUSB0" # passthrough single USB Device
+      #- "/dev/ttyACM0:/dev/ttyACM0"
+    tty: true
+    depends_on:
+      - couchdb
+
+  couchdb:
+    image: couchdb:3.3
+    container_name: gcs-couchdb
+    environment:
+      - COUCHDB_USER=admin
+      - COUCHDB_PASSWORD=openmct123
+      - COUCHDB_LOG_LEVEL=error
+    ports:
+      - "5984:5984"
+    volumes:
+      - ./couchdb_data:/opt/couchdb/data
+    network_mode: "host"
+    restart: always

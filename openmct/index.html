@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <title>Open MCT</title>
+  <script src="openmct.js"></script>
+  <link rel="icon" type="image/png" href="favicons/favicon-96x96.png" sizes="96x96" type="image/x-icon" />
+  <link rel="icon" type="image/png" href="favicons/favicon-32x32.png" sizes="32x32" type="image/x-icon" />
+  <link rel="icon" type="image/png" href="favicons/favicon-16x16.png" sizes="16x16" type="image/x-icon" />
+  <style>
+    @keyframes splash-spinner {
+      0% {
+        transform: translate(-50%, -50%) rotate(0deg);
+      }
+
+      100% {
+        transform: translate(-50%, -50%) rotate(360deg);
+      }
+    }
+
+    #splash-screen {
+      background-color: black;
+      position: absolute;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      left: 0;
+      z-index: 10000;
+    }
+
+    #splash-screen:before {
+      animation-name: splash-spinner;
+      animation-duration: 0.5s;
+      animation-iteration-count: infinite;
+      animation-timing-function: linear;
+      border-radius: 50%;
+      border-color: rgba(255, 255, 255, 0.25);
+      border-top-color: white;
+      border-style: solid;
+      border-width: 10px;
+      content: '';
+      display: block;
+      opacity: 0.25;
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      height: 100px;
+      width: 100px;
+    }
+  </style>
+  <script defer>
+    const THIRTY_SECONDS = 30 * 1000;
+    const ONE_MINUTE = THIRTY_SECONDS * 2;
+    const FIVE_MINUTES = ONE_MINUTE * 5;
+    const FIFTEEN_MINUTES = FIVE_MINUTES * 3;
+    const THIRTY_MINUTES = FIFTEEN_MINUTES * 2;
+    const ONE_HOUR = THIRTY_MINUTES * 2;
+    const TWO_HOURS = ONE_HOUR * 2;
+    const ONE_DAY = ONE_HOUR * 24;
+
+    openmct.setAssetPath('');
+
+    //  --- MY CODE ---
+    // 1. Connect CouchDB
+    openmct.install(openmct.plugins.CouchDB('http://' + window.location.hostname + ':8080/openmct_db'));
+
+    openmct.objects.addGetInterceptor({
+      appliesTo: (identifier) => identifier.namespace === '' && identifier.key === 'mine',
+      invoke: (identifier, object) => {
+        object.name = "AcrossAustria";
+        return object;
+      }
+    });
+
+    openmct.install(openmct.plugins.MyItems());
+    //  --- MY CODE END ---
+
+    openmct.install(openmct.plugins.example.Generator());
+    openmct.install(openmct.plugins.example.EventGeneratorPlugin());
+    openmct.install(openmct.plugins.example.ExampleImagery());
+    openmct.install(openmct.plugins.example.ExampleTags());
+
+    openmct.install(openmct.plugins.Espresso());
+    openmct.install(
+      openmct.plugins.PlanLayout({
+        creatable: true
+      })
+    );
+    const timeLinePlugin = openmct.plugins.Timeline();
+    openmct.install(timeLinePlugin);
+    openmct.install(openmct.plugins.Hyperlink());
+    openmct.install(openmct.plugins.UTCTimeSystem());
+    openmct.install(
+      openmct.plugins.AutoflowView({
+        type: 'telemetry.panel'
+      })
+    );
+    openmct.install(
+      openmct.plugins.DisplayLayout({
+        showAsView: ['summary-widget', 'example.imagery']
+      })
+    );
+    openmct.install(
+      openmct.plugins.Conductor({
+        menuOptions: [
+          {
+            name: 'Fixed',
+            timeSystem: 'utc',
+            bounds: {
+              start: Date.now() - THIRTY_MINUTES,
+              end: Date.now()
+            },
+            presets: [
+              { label: 'Last Day', bounds: { start: () => Date.now() - ONE_DAY, end: () => Date.now() } },
+              { label: 'Last 2 hours', bounds: { start: () => Date.now() - TWO_HOURS, end: () => Date.now() } },
+              { label: 'Last hour', bounds: { start: () => Date.now() - ONE_HOUR, end: () => Date.now() } }
+            ],
+            records: 10
+          },
+          {
+            name: 'Realtime',
+            timeSystem: 'utc',
+            clock: 'local',
+            clockOffsets: {
+              start: -THIRTY_MINUTES,
+              end: THIRTY_SECONDS
+            },
+            presets: [
+              { label: '1 Hour', bounds: { start: -ONE_HOUR, end: THIRTY_SECONDS } },
+              { label: '30 Minutes', bounds: { start: -THIRTY_MINUTES, end: THIRTY_SECONDS } },
+              { label: '15 Minutes', bounds: { start: -FIFTEEN_MINUTES, end: THIRTY_SECONDS } },
+              { label: '5 Minutes', bounds: { start: -FIVE_MINUTES, end: THIRTY_SECONDS } },
+              { label: '1 Minute', bounds: { start: -ONE_MINUTE, end: THIRTY_SECONDS } }
+            ]
+          }
+        ]
+      })
+    );
+    openmct.install(openmct.plugins.SummaryWidget());
+    openmct.install(openmct.plugins.Notebook());
+    openmct.install(openmct.plugins.LADTable());
+    openmct.install(openmct.plugins.Filters(['table', 'telemetry.plot.overlay']));
+    openmct.install(openmct.plugins.ObjectMigration());
+    openmct.install(
+      openmct.plugins.ClearData(
+        ['table', 'telemetry.plot.overlay', 'telemetry.plot.stacked', 'example.imagery'],
+        { indicator: true }
+      )
+    );
+    openmct.install(openmct.plugins.Clock({ enableClockIndicator: true }));
+    openmct.install(openmct.plugins.Timer());
+    openmct.install(openmct.plugins.Timelist());
+    openmct.install(openmct.plugins.BarChart());
+    openmct.install(openmct.plugins.ScatterPlot());
+    openmct.install(openmct.plugins.EventTimestripPlugin(timeLinePlugin.extendedLinesBus));
+
+
+    //  --- MY CODE ---
+    openmct.install(function (openmct) {
+      const serverHost = window.location.hostname;
+      const socket = new WebSocket('ws://' + serverHost + ':8081');
+      const messageObjects = {};
+      const discoveredMessages = new Set();
+      const discoveredFields = new Set();
+      const observers = {};
+
+      // NEW: Fetch category history from Python backend
+      const typesPromise = fetch('http://' + serverHost + ':5000/types')
+        .then(res => res.json())
+        .catch(err => {
+          console.error("Error fetching categories:", err);
+          return [];
+        });
+
+      // 1. Standard Metadata structures
+      const MAVLINK_METADATA = {
+        values: [
+          { key: 'value', name: 'value', hints: { range: 1 } },
+          { key: 'utc', name: 'Timestamp', format: 'utc', hints: { domain: 1 } }
+        ]
+      };
+
+      // 2. Root Folder
+      messageObjects['root'] = {
+        identifier: { namespace: 'mavlink', key: 'root' },
+        name: 'MAVLink Telemetry',
+        type: 'folder',
+        location: 'ROOT'
+      };
+      openmct.objects.addRoot({ namespace: 'mavlink', key: 'root' });
+
+      // 3. Object Provider (Waits for the promise to return category objects)
+      openmct.objects.addProvider('mavlink', {
+        get: function (identifier) {
+          if (identifier.key === 'root') {
+            return Promise.resolve(messageObjects['root']);
+          }
+          return typesPromise.then(() => {
+            return messageObjects[identifier.key];
+          });
+        }
+      });
+
+      // 4. Composition Provider
+      openmct.composition.addProvider({
+        appliesTo: (obj) => obj.identifier.namespace === 'mavlink' && obj.type === 'folder',
+        load: function (obj) {
+          const key = obj.identifier.key;
+          if (key === 'root') {
+            // Build root folder based on DB history
+            return typesPromise.then(types => {
+              types.forEach(msgType => {
+                discoveredMessages.add(msgType);
+                if (!messageObjects[msgType]) {
+                  messageObjects[msgType] = {
+                    identifier: { namespace: 'mavlink', key: msgType },
+                    name: msgType,
+                    type: 'folder',
+                    location: 'mavlink:root'
+                  };
+                }
+              });
+              return types.map(k => ({ namespace: 'mavlink', key: k }));
+            });
+          } else {
+            const prefix = key + '.';
+            return Promise.resolve(Array.from(discoveredFields).filter(f => f.startsWith(prefix)).map(f => ({ namespace: 'mavlink', key: f })));
+          }
+        }
+      });
+
+      // 5. Telemetry Provider
+      openmct.telemetry.addProvider({
+        supportsSubscribe: (obj) => obj.type === 'mavlink.telemetry',
+        supportsRequest: (obj) => obj.type === 'mavlink.telemetry',
+        getMetadata: (obj) => MAVLINK_METADATA,
+
+        request: function (obj, opt) {
+          const url = `http://${serverHost}:5000/history/${obj.identifier.key}?start=${opt.start}&end=${opt.end}`;
+          return fetch(url).then(r => r.json()).catch(() => []);
+        },
+        subscribe: function (obj, cb) {
+          const [msgType, field] = obj.identifier.key.split('.');
+          if (!observers[msgType]) observers[msgType] = [];
+          const wrapper = (data) => {
+            if (data[field] !== undefined) cb({ utc: data.utc, value: data[field] });
+          };
+          observers[msgType].push(wrapper);
+          return () => { observers[msgType] = observers[msgType].filter(c => c !== wrapper); };
+        }
+      });
+
+      openmct.types.addType('mavlink.telemetry', { name: 'MAVLink value', cssClass: 'icon-telemetry' });
+
+      // 6. WebSocket Logic
+      socket.onmessage = function (event) {
+        const data = JSON.parse(event.data);
+        const msgType = data.mavtype;
+        const ts = data.utc || Date.now();
+
+        // Message as Folder (In case a completely new type arrives that was not in the DB)
+        if (!discoveredMessages.has(msgType)) {
+          discoveredMessages.add(msgType);
+          messageObjects[msgType] = {
+            identifier: { namespace: 'mavlink', key: msgType },
+            name: msgType,
+            type: 'folder',
+            location: 'mavlink:root'
+          };
+        }
+
+        // Fields as Telemetry Points
+        Object.keys(data).forEach(field => {
+          if (['mavtype', 'utc'].includes(field)) return;
+          const fKey = msgType + '.' + field;
+
+          if (!discoveredFields.has(fKey)) {
+            discoveredFields.add(fKey);
+            messageObjects[fKey] = {
+              identifier: { namespace: 'mavlink', key: fKey },
+              name: field,
+              type: 'mavlink.telemetry',
+              location: 'mavlink:' + msgType,
+              telemetry: MAVLINK_METADATA
+            };
+          }
+        });
+
+        if (observers[msgType]) {
+          data.utc = ts;
+          observers[msgType].forEach(c => c(data));
+        }
+      };
+    });
+    // --- MY CODE END ---
+
+    document.addEventListener('DOMContentLoaded', function () {
+      openmct.start();
+    });
+  </script>
+</head>
+
+<body>
+  <div id="app"></div>
+</body>
+
+</html>
