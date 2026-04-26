@@ -5,6 +5,7 @@ import sqlite3
 import os
 import struct
 import time
+import yaml
 from aiohttp import web
 from pymavlink import mavutil
 from datetime import datetime, timedelta
@@ -13,6 +14,7 @@ from datetime import datetime, timedelta
 MAVLINK_PORT = "14551"
 WEBSOCKET_PORT = 8081
 HTTP_PORT = 5000
+
 
 # 1. Cache for live-data
 CACHE_DIR = ".cache"
@@ -27,6 +29,30 @@ TLOG_PATH = os.path.join(LOG_DIR, TLOG_FILENAME)
 for directory in [CACHE_DIR, LOG_DIR]:
     if not os.path.exists(directory):
         os.makedirs(directory)
+
+def load_scaling_rules(filepath="/app/scaling_rules.yaml"):
+    try:
+        with open(filepath, 'r') as f:
+            return yaml.safe_load(f)
+    except Exception as e:
+        print(f"[WARNING] Could not load {filepath}: {e}. Using no scaling.")
+        return {}
+
+
+MAV_SCALING_TABLE = load_scaling_rules()  # Scale Values
+print(f"GELADENE REGELN: {MAV_SCALING_TABLE}")
+
+def apply_gcs_scaling(msg_type, data):
+    if msg_type in MAV_SCALING_TABLE:
+        rules = MAV_SCALING_TABLE[msg_type]
+        for field, factor in rules.items():
+            if field in data:
+                val = data[field]
+                if isinstance(val, list):
+                    data[field] = [v / factor for v in val if v < 65535]
+                elif isinstance(val, (int, float)):
+                    data[field] = val / factor
+    return data
 
 def init_db():
     conn = sqlite3.connect(DB_PATH)
@@ -165,6 +191,7 @@ async def bridge_logic():
             # 2. JSON processing for OpenMCT
             msg_type = msg.get_type()
             msg_data = msg.to_dict()
+            msg_data = apply_gcs_scaling(msg_type, msg_data) #apply scaling
             msg_data["mavtype"] = msg_type
 
             timestamp = int(datetime.now().timestamp() * 1000)

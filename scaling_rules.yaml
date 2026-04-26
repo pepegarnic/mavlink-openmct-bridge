@@ -1,0 +1,33 @@
+# MAVLink Scaling Rules
+# Format: MSG_TYPE -> Field -> Factor
+GLOBAL_POSITION_INT:
+  lat: 10000000.0
+  lon: 10000000.0
+  alt: 1000.0
+  relative_alt: 1000.0
+  vx: 100.0
+  vy: 100.0
+  vz: 100.0
+
+SYS_STATUS:
+  voltage_battery: 1000.0
+  current_battery: 10.0 # Standard ArduPilot 10mA
+
+BATTERY_STATUS:
+  voltages: 1000.0
+  current_battery: 10.0
+
+GPS_RAW_INT:
+  lat: 10000000.0
+  lon: 10000000.0
+  alt: 1000.0
+  vel: 100.0
+
+POWER_STATUS:
+  vcc: 1000.0
+  vservo: 1000.0
+
+RAW_IMU:
+  xacc: 1000.0
+  yacc: 1000.0
+  zacc: 1000.0

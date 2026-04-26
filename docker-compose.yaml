@@ -9,6 +9,7 @@ services:
     volumes:
       - ./launch_all.py:/app/launch_all.py
       - ./launch_telemetry_bridge.py:/app/launch_telemetry_bridge.py
+      - ./scaling_rules.yaml:/app/scaling_rules.yaml
       - ./openmct:/app/openmct
       - ./.cache:/app/.cache
       - ./logs:/app/logs
