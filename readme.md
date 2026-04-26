@@ -31,7 +31,7 @@ This project creates a seamless bridge between **MAVLink-compatible flight contr
 ### Quick Start
 1. **Clone the repository:**
 ```bash
-   git clone [https://github.com/pepegarnic/mavlink-openmct-bridge.git](https://github.com/pepegarnic/mavlink-openmct-bridge.git)
+   git clone https://github.com/pepegarnic/mavlink-openmct-bridge.git
    cd mavlink-openmct-bridge
    docker compose up --build
    ```
