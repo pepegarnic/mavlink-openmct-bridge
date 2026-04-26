@@ -95,7 +95,8 @@ def main():
 
     print("\n[OK] listening to all Channels!")
     print("[OK] System ready!")
-    print("open http://192.168.8.3:8080 in browser.")
+    local_IP = get_local_ip()
+    print(f"open {local_IP}:8080 in browser.")
 
     while True:
         for name, p in processes.items():
