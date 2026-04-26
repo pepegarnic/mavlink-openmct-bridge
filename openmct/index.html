@@ -171,7 +171,10 @@
       const discoveredFields = new Set();
       const observers = {};
 
-      // NEW: Fetch category history from Python backend
+      // NEU: Globale Variable für unsere Einheiten (Metadaten)
+      let unitMetadata = {};
+
+      // Kategorien von der Datenbank holen
       const typesPromise = fetch('http://' + serverHost + ':5000/types')
         .then(res => res.json())
         .catch(err => {
@@ -179,15 +182,43 @@
           return [];
         });
 
-      // 1. Standard Metadata structures
-      const MAVLINK_METADATA = {
-        values: [
-          { key: 'value', name: 'value', hints: { range: 1 } },
-          { key: 'utc', name: 'Timestamp', format: 'utc', hints: { domain: 1 } }
-        ]
-      };
+      // NEU: Einheiten-Lexikon vom Python-Server laden
+      const metadataPromise = fetch('http://' + serverHost + ':5000/metadata')
+        .then(res => res.json())
+        .then(data => {
+          unitMetadata = data;
+          console.log("MAVLink Einheiten erfolgreich geladen:", unitMetadata);
+        })
+        .catch(err => console.error("Error fetching metadata:", err));
 
-      // 2. Root Folder
+      // NEU: Dynamischer Generator für Telemetrie-Eigenschaften (inklusive Einheiten)
+      function getFieldMetadata(msgType, fieldName) {
+        let unitString = "";
+        // Prüfen, ob wir für dieses Feld eine Einheit im Lexikon haben
+        if (unitMetadata[msgType] && unitMetadata[msgType][fieldName] && unitMetadata[msgType][fieldName].unit) {
+          unitString = unitMetadata[msgType][fieldName].unit;
+        }
+
+        return {
+          values: [
+            {
+              key: 'value',
+              name: 'Value',
+              unit: unitString, // <--- Hier fügen wir die Einheit ein!
+              format: 'float',
+              hints: { range: 1 }
+            },
+            {
+              key: 'utc',
+              name: 'Time',
+              format: 'utc',
+              hints: { domain: 1 }
+            }
+          ]
+        };
+      }
+
+      // Root Folder
       messageObjects['root'] = {
         identifier: { namespace: 'mavlink', key: 'root' },
         name: 'MAVLink Telemetry',
@@ -196,7 +227,7 @@
       };
       openmct.objects.addRoot({ namespace: 'mavlink', key: 'root' });
 
-      // 3. Object Provider (Waits for the promise to return category objects)
+      // Object Provider
       openmct.objects.addProvider('mavlink', {
         get: function (identifier) {
           if (identifier.key === 'root') {
@@ -208,13 +239,12 @@
         }
       });
 
-      // 4. Composition Provider
+      // Composition Provider
       openmct.composition.addProvider({
         appliesTo: (obj) => obj.identifier.namespace === 'mavlink' && obj.type === 'folder',
         load: function (obj) {
           const key = obj.identifier.key;
           if (key === 'root') {
-            // Build root folder based on DB history
             return typesPromise.then(types => {
               types.forEach(msgType => {
                 discoveredMessages.add(msgType);
@@ -236,36 +266,73 @@
         }
       });
 
-      // 5. Telemetry Provider
+      // Telemetry Provider
       openmct.telemetry.addProvider({
         supportsSubscribe: (obj) => obj.type === 'mavlink.telemetry',
         supportsRequest: (obj) => obj.type === 'mavlink.telemetry',
-        getMetadata: (obj) => MAVLINK_METADATA,
+
+        // NEU: OpenMCT ruft diese Funktion auf, wenn es wissen will, welche Einheiten ein Graph hat
+        getMetadata: function (obj) {
+          const [msgType, field] = obj.identifier.key.split('.');
+          return getFieldMetadata(msgType, field);
+        },
 
         request: function (obj, opt) {
           const url = `http://${serverHost}:5000/history/${obj.identifier.key}?start=${opt.start}&end=${opt.end}`;
           return fetch(url).then(r => r.json()).catch(() => []);
         },
+
         subscribe: function (obj, cb) {
-          const [msgType, field] = obj.identifier.key.split('.');
+          const key = obj.identifier.key;
+          const [msgType, field] = key.split('.');
+
           if (!observers[msgType]) observers[msgType] = [];
+
           const wrapper = (data) => {
-            if (data[field] !== undefined) cb({ utc: data.utc, value: data[field] });
+            // Unterstützt das neue Pub/Sub-Format ODER das alte Broadcast-Format
+            if (data.id === key) {
+              cb({ utc: data.timestamp, value: data.value });
+            } else if (data[field] !== undefined && data.mavtype === msgType) {
+              cb({ utc: data.utc, value: data[field] });
+            }
           };
+
           observers[msgType].push(wrapper);
-          return () => { observers[msgType] = observers[msgType].filter(c => c !== wrapper); };
+
+          // NEU: PUB/SUB - Dem Python Server sagen, dass wir genau dieses Feld wollen
+          if (socket.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify({ action: "subscribe", message: key }));
+          }
+
+          return () => {
+            observers[msgType] = observers[msgType].filter(c => c !== wrapper);
+            // NEU: PUB/SUB - Abonnement wieder kündigen, um Bandbreite zu sparen
+            if (socket.readyState === WebSocket.OPEN) {
+              socket.send(JSON.stringify({ action: "unsubscribe", message: key }));
+            }
+          };
         }
       });
 
       openmct.types.addType('mavlink.telemetry', { name: 'MAVLink value', cssClass: 'icon-telemetry' });
 
-      // 6. WebSocket Logic
+      // WebSocket Logic
       socket.onmessage = function (event) {
         const data = JSON.parse(event.data);
+
+        // Wenn es ein direkter Pub/Sub Hit ist, müssen wir keine Ordner bauen
+        if (data.id && data.value !== undefined) {
+          const msgType = data.id.split('.')[0];
+          if (observers[msgType]) {
+            observers[msgType].forEach(c => c(data));
+          }
+          return;
+        }
+
         const msgType = data.mavtype;
         const ts = data.utc || Date.now();
 
-        // Message as Folder (In case a completely new type arrives that was not in the DB)
+        // Message as Folder
         if (!discoveredMessages.has(msgType)) {
           discoveredMessages.add(msgType);
           messageObjects[msgType] = {
@@ -278,7 +345,8 @@
 
         // Fields as Telemetry Points
         Object.keys(data).forEach(field => {
-          if (['mavtype', 'utc'].includes(field)) return;
+          // Systemfelder überspringen
+          if (['mavtype', 'utc', 'timestamp', 'id', 'value'].includes(field)) return;
           const fKey = msgType + '.' + field;
 
           if (!discoveredFields.has(fKey)) {
@@ -288,7 +356,7 @@
               name: field,
               type: 'mavlink.telemetry',
               location: 'mavlink:' + msgType,
-              telemetry: MAVLINK_METADATA
+              telemetry: getFieldMetadata(msgType, field) // NEU: Einheit wird zugewiesen
             };
           }
         });
@@ -298,6 +366,14 @@
           observers[msgType].forEach(c => c(data));
         }
       };
+
+      // Falls der Socket später lädt: einmal alle Abonnements schicken
+      socket.onopen = function () {
+        Object.keys(observers).forEach(msgType => {
+          // Optional: Hier könnte man existierende Subscriptions nachsenden
+        });
+      };
+
     });
     // --- MY CODE END ---
 

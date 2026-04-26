@@ -1,33 +1,46 @@
-# MAVLink Scaling Rules
-# Format: MSG_TYPE -> Field -> Factor
+# MAVLink Scaling Rules & Custom Units
+# Format: MSG_TYPE -> Field -> { factor: X, unit: "Y" }
+
 GLOBAL_POSITION_INT:
-  lat: 10000000.0
-  lon: 10000000.0
-  alt: 1000.0
-  relative_alt: 1000.0
-  vx: 100.0
-  vy: 100.0
-  vz: 100.0
-
-SYS_STATUS:
-  voltage_battery: 1000.0
-  current_battery: 10.0 # Standard ArduPilot 10mA
-
-BATTERY_STATUS:
-  voltages: 1000.0
-  current_battery: 10.0
+  lat: { factor: 10000000.0, unit: "deg" }
+  lon: { factor: 10000000.0, unit: "deg" }
+  alt: { factor: 1000.0, unit: "m" }
+  relative_alt: { factor: 1000.0, unit: "m" }
+  vx: { factor: 100.0, unit: "m/s" }
+  vy: { factor: 100.0, unit: "m/s" }
+  vz: { factor: 100.0, unit: "m/s" }
+  hdg: { factor: 100.0, unit: "deg" }
 
 GPS_RAW_INT:
-  lat: 10000000.0
-  lon: 10000000.0
-  alt: 1000.0
-  vel: 100.0
+  lat: { factor: 10000000.0, unit: "deg" }
+  lon: { factor: 10000000.0, unit: "deg" }
+  alt: { factor: 1000.0, unit: "m" }
+  vel: { factor: 100.0, unit: "m/s" }
+  cog: { factor: 100.0, unit: "deg" }
+
+SYS_STATUS:
+  voltage_battery: { factor: 1000.0, unit: "V" }
+  current_battery: { factor: 100.0, unit: "A" }
+  load: { factor: 10.0, unit: "%" }
+
+BATTERY_STATUS:
+  voltages: { factor: 1000.0, unit: "V" }
+  current_battery: { factor: 100.0, unit: "A" }
+  temperature: { factor: 100.0, unit: "C" }
+  voltages_ext: { factor: 1000.0, unit: "V" }
 
 POWER_STATUS:
-  vcc: 1000.0
-  vservo: 1000.0
+  vcc: { factor: 1000.0, unit: "V" }
+  vservo: { factor: 1000.0, unit: "V" }
 
 RAW_IMU:
-  xacc: 1000.0
-  yacc: 1000.0
-  zacc: 1000.0
+  xacc: { factor: 1000.0, unit: "m/s^2" }
+  yacc: { factor: 1000.0, unit: "m/s^2" }
+  zacc: { factor: 1000.0, unit: "m/s^2" }
+  xgyro: { factor: 1000.0, unit: "rad/s" }
+  ygyro: { factor: 1000.0, unit: "rad/s" }
+  zgyro: { factor: 1000.0, unit: "rad/s" }
+
+MCU_STATUS:
+  MCU_voltage: { factor: 1000.0, unit: "V" }
+  MCU_temperature: { factor: 100.0, unit: "C" }
